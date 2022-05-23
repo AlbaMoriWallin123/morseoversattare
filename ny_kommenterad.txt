@@ -1,0 +1,137 @@
+#include <U8glib.h> //inporterar bibliotet till oled displayen
+
+#define knapp 12 //definerarv pin:sen för knappen och dioden
+#define diod 11
+
+int nedtryckt = 0; //skapar variabler
+int inte_nedtryckt = 0;
+int trycklangd = 0;
+int i = 0;
+int x = 1;
+int y = 12;
+String pa_skarm = "";
+String bokstav_string = "";
+String utskrift = "";
+String alla_morsetecken[] = {".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....",
+                             "..", ".---", "-.-", ".-..", "--", "-.", "---", ".--.", "--.-",
+                             ".-.", "...", "-", "..-", "...-", ".--", "-..-", "-.--", "--..", "!"
+                            };
+
+
+
+U8GLIB_SSD1306_128X64 oled(U8G_I2C_OPT_NONE); //väljer typsnitt
+
+
+
+void setup() {
+  pinMode(knapp, INPUT); //bestämmer inout eller output
+  pinMode(diod, OUTPUT);
+
+  oled.setFont(u8g_font_unifont); // sätter typsnitt
+  Serial.begin(9600); //startar monitorn
+
+  oled.firstPage(); //nollställer skärmen genom att skriva ut ingenting
+  do {
+    oled.drawStr(1, 12, "");
+  }
+  while (oled.nextPage()); 
+
+}
+
+
+void loop() {
+
+  if (digitalRead(knapp) == HIGH) {  //om kanppen trycks ned ska den spara millies i en variabel
+    nedtryckt = millis();
+    while (digitalRead(knapp) == HIGH) { //dioden ska lysa, görs i  while loop för att stanna upp koden så att den inte hoppar till nästa if-sats
+      digitalWrite(diod, HIGH);
+    }
+
+    if (digitalRead(knapp) == LOW) { //när knappen släpps ska millies sparas igen i en annan varibel
+      inte_nedtryckt = millis();
+      digitalWrite(diod, LOW); // stänger av dioden
+      trycklangd = inte_nedtryckt - nedtryckt; //Räknar ut tid kanppen var nedtryckt
+
+      if (tecken(trycklangd) != " ") { // om funktionen inte teckan() returnerar ett blanksteg ska det returnerade tecknet läggas till i utskrift
+        utskrift += tecken(trycklangd);
+
+        oled.firstPage(); //ska sedan skriva ut utskrift
+        do {
+          oled.drawStr(x, y, utskrift.c_str());
+        }
+        while (oled.nextPage());
+
+      }
+
+      else if (tecken(trycklangd) == " ") { //om då tecken() är ett blanksteg ska funktionen översättare köras
+        oversattare();
+        x += 7; //x variabeln adderas med sju för att punkterna och strecken ska skrivas ut efter sista bokstaven hela tiden, alltså där den nya bokstaven ska visas
+      }
+    }
+  }
+}
+
+
+//Functionen tar inte in någon variabel men använder sig av tre externa variabler utskrift och pa_skarm som är strings och alla_morsetecken som är en array. 
+//Funktionen tar reda på om morsetcknet man skrivit in printar sedan det på displayen för att annars printa ett felmedelande på displayen
+void oversattare() { 
+
+  while (utskrift != "") {//så länge utskrift inte nollställts så ska while loopen köras
+
+    if (utskrift == alla_morsetecken[i]) { //kollar om utskrift (de tecken och punkter man skrivit in) är lika med ett specifikt element i arrayen alla_morsetecken
+      pa_skarm += char(65 + i); //charactern bokstav adderas då till pa_skarm som innehåller alla bokstäver som printas på skärmen
+
+      oled.firstPage(); //skriver ut bokstäverna på skärmen
+      do {
+        oled.drawStr(1, 12, pa_skarm.c_str());
+      }
+      while (oled.nextPage());
+      i = 0; //ökar i med ett för att kolla om utskrift är lika med nästa element i arrayen
+      utskrift = ""; //7 nollställer utskrift för att börja på ny bokstav
+    }
+
+    else if (i == 26) { //om i är lika med 26, alltså fler element än vad som finns i arrayen skrivs fel ut i en sekund för att sedan skriva ut de bokstäver som fanns på skärmen innan
+
+      oled.firstPage();
+      do {
+        oled.drawStr(x, y, "fel");
+      }
+      while (oled.nextPage());
+
+      delay(1000);
+
+      oled.firstPage();
+      do {
+        oled.drawStr(1, 12, pa_skarm.c_str());
+      }
+      while (oled.nextPage());
+
+      x -= 7; //minskar x med 7 för att för att punkterna och strecken ska fortsätta skrivas ut efter sista bokstaven hela tiden, eftersom att det annars blir en tom ruta mellan bokstav och de tecken och punkter som skrivs ut
+      i = 0; //nollställer i för att börja leta i första array elementet på nästa bokstav
+      utskrift = "";
+    }
+
+    else { //om utskrift inte är lika med ett av array elementen och i inte är uppe i 26 ökar i med 1 för att kolla nästa element
+      i++;
+    }
+  }
+}
+
+//kollar om man skrivit en punkt, ett streck eller blanksteg 
+//Detta genom att den tar in variabeln trycklängd (integer) för att jämföre den och sedan returnera en string. 
+String tecken(int trycklangd) { 
+  if (trycklangd < 300 && trycklangd > 0) {
+    Serial.println(".");
+    return ".";
+  }
+
+  else if (trycklangd > 300 && trycklangd < 800) {
+    Serial.println("-");
+    return "-";
+  }
+
+  else if (trycklangd > 800) {
+    Serial.println(" ");
+    return " ";
+  }
+}
